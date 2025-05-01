@@ -3,10 +3,13 @@ import openai
 import requests
 import os
 
-# ✅ 먼저 app 선언
+# OpenAI 1.x 대응용 클라이언트 선언
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 app = Flask(__name__)
 
-# ✅ 그 다음부터 라우터들
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+
 @app.route('/')
 def home():
     return '✅ 서버 잘 켜졌어!'
@@ -19,6 +22,7 @@ def oauth_callback():
 def slack_events():
     data = request.json
 
+    # 슬랙 URL 인증용 challenge 응답
     if 'challenge' in data:
         return data['challenge']
 
@@ -26,6 +30,7 @@ def slack_events():
     user_text = event.get('text', '')
     channel_id = event.get('channel')
 
+    # 실제 유저 메시지 처리
     if user_text and 'bot_id' not in event:
         feedback = generate_feedback(user_text)
         send_to_slack(channel_id, feedback)
@@ -33,8 +38,7 @@ def slack_events():
     return 'OK', 200
 
 def generate_feedback(user_input):
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "너는 건강 피드백 코치야. 사용자 입력을 보고 운동/식단 피드백을 짧게 줘."},
@@ -45,7 +49,7 @@ def generate_feedback(user_input):
 
 def send_to_slack(channel, text):
     headers = {
-        "Authorization": f"Bearer {os.getenv('SLACK_BOT_TOKEN')}",
+        "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
         "Content-Type": "application/json"
     }
     payload = {
